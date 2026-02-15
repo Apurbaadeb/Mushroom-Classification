@@ -1,18 +1,22 @@
+import os
 import pandas as pd
 import numpy as np
+import pickle
+from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split
 
 # ==============================
 # Load dataset
-df = pd.read_csv(r"C:\Users\user\Desktop\mushrooms.csv")
+df = pd.read_csv(r"mushrooms.csv")
 
 # Clean column names
 df.columns = df.columns.str.strip()
 
 # ==============================
-# Separate target label
+# Extract target label and separate features
 y = df["class"]
 
-# DROP some columns you chose earlier
+# DROP some columns havibg extremely high correlation with the target variable
 X = df.drop(columns=["class", "odor", "gill-color", "veil-type"])
 
 # One-hot encode categorical features
@@ -38,25 +42,30 @@ print("Dropping highly correlated features:", to_drop)
 
 # Drop those features
 X = X.drop(columns=to_drop)
+pickle.dump(X.columns.tolist(), open("model_columns.pkl", "wb"))
 
 # ==============================
 # Encode target labels
-from sklearn.preprocessing import LabelEncoder
 le = LabelEncoder()
 y = le.fit_transform(y)
 
 # ==============================
-# Train-Test Split + Scaling
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-
+# Train-Test Split
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42, stratify=y
 )
+test_data = X_test.copy()
+test_data["class"] = y_test
 
-scaler = StandardScaler()
-X_train = scaler.fit_transform(X_train)
-X_test = scaler.transform(X_test)
+# If we want original labels instead of 0/1:
+test_data["class"] = test_data["class"].map({0: "e", 1: "p"})
+
+# Save to CSV
+test_data.to_csv("test_data.csv", index=False)
+
+print("test_data.csv saved successfully ✅")
+pickle.dump(X_test, open("X_test.pkl", "wb"))
+pickle.dump(y_test, open("y_test.pkl", "wb"))
 
 # ==============================
 # TRAIN MODELS
@@ -122,10 +131,7 @@ results_df = pd.DataFrame(
 print("\nModel Comparison After Correlation Selection:\n")
 print(results_df)
 
-
-import os
-import pickle
-
+# Save the trained models to be used in later predictions
 os.makedirs("models", exist_ok=True)
 
 pickle.dump(log_model, open("models/logistic.pkl", "wb"))
@@ -136,94 +142,3 @@ pickle.dump(rf_model, open("models/random_forest.pkl", "wb"))
 pickle.dump(xgb_model, open("models/xgboost.pkl", "wb"))
 
 print("Models saved successfully ✅")
-
-
-
-import streamlit as st
-import pandas as pd
-import pickle
-import numpy as np
-from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.metrics import accuracy_score, confusion_matrix
-import seaborn as sns
-import matplotlib.pyplot as plt
-
-st.title("📊 E-Commerce Category Prediction App")
-
-# ============================
-# Upload Dataset
-# ============================
-uploaded_file = st.file_uploader("Upload CSV", type="csv")
-
-if uploaded_file is not None:
-
-    df = pd.read_csv(uploaded_file)
-    df.columns = df.columns.str.strip()
-
-    # ============================
-    # Preprocessing (Same as Training)
-    # ============================
-
-    df["Order Date"] = pd.to_datetime(df["Order Date"])
-    df["Year"] = df["Order Date"].dt.year
-    df["Month"] = df["Order Date"].dt.month
-    df["Day"] = df["Order Date"].dt.day
-    df = df.drop(columns=["Order Date"])
-
-    y = df["Category"]
-    X = df.drop(columns=["Category", "Product Name"])
-
-    X = pd.get_dummies(X, drop_first=True)
-
-    le = LabelEncoder()
-    y = le.fit_transform(y)
-
-    scaler = StandardScaler()
-    X = scaler.fit_transform(X)
-
-    # ============================
-    # Model Selection
-    # ============================
-    model_choice = st.selectbox(
-        "Select Model",
-        ["Logistic Regression", "Decision Tree", "KNN",
-         "Naive Bayes", "Random Forest", "XGBoost"]
-    )
-
-    if model_choice == "Logistic Regression":
-        model = pickle.load(open("models/logistic.pkl", "rb"))
-    elif model_choice == "Decision Tree":
-        model = pickle.load(open("models/decision_tree.pkl", "rb"))
-    elif model_choice == "KNN":
-        model = pickle.load(open("models/knn.pkl", "rb"))
-    elif model_choice == "Naive Bayes":
-        model = pickle.load(open("models/naive_bayes.pkl", "rb"))
-    elif model_choice == "Random Forest":
-        model = pickle.load(open("models/random_forest.pkl", "rb"))
-    else:
-        model = pickle.load(open("models/xgboost.pkl", "rb"))
-
-    # ============================
-    # Predictions
-    # ============================
-    y_pred = model.predict(X)
-
-    accuracy = accuracy_score(y, y_pred)
-
-    st.subheader("📈 Model Performance")
-    st.write(f"Accuracy: {accuracy:.4f}")
-
-    # ============================
-    # Confusion Matrix
-    # ============================
-    st.subheader("📊 Confusion Matrix")
-
-    cm = confusion_matrix(y, y_pred)
-
-    fig, ax = plt.subplots()
-    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax)
-    plt.xlabel("Predicted")
-    plt.ylabel("Actual")
-
-    st.pyplot(fig)
-
