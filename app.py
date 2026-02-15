@@ -86,7 +86,7 @@ xgboost_model = pickle.load(
     open(models_path.format(model="xgboost.pkl"), "rb")
 )
 
-encoder = pickle.load(open("encoder.pkl", "rb"))
+
 X_test = pickle.load(open("X_test.pkl", "rb"))
 y_test = pickle.load(open("y_test.pkl", "rb"))
 
@@ -497,3 +497,5 @@ if uploaded_file is not None:
                 ax_roc.legend(loc="lower right")
 
                 st.pyplot(fig_roc)
+            
+
